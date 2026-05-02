@@ -68,8 +68,13 @@ jobs:
           CGO_ENABLED: 1
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
+        shell: bash
         run: |
-          go build -ldflags="-s -w" -o "simpler2sync-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}" .
+          ldflags="-s -w"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            ldflags="$ldflags -H=windowsgui"
+          fi
+          go build -ldflags="$ldflags" -o "simpler2sync-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}" .
 
       - name: Package (tar.gz)
         if: matrix.pkg == 'tar.gz'

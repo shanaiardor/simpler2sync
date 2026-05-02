@@ -4,7 +4,16 @@
 BIN_DIR   := bin
 APP_NAME  := simpler2sync
 LDFLAGS   := -s -w
+WIN_LDFLAGS := $(LDFLAGS) -H=windowsgui
 GO        := go
+
+ifeq ($(OS),Windows_NT)
+HOST_EXT := .exe
+HOST_LDFLAGS := $(WIN_LDFLAGS)
+else
+HOST_EXT :=
+HOST_LDFLAGS := $(LDFLAGS)
+endif
 
 .PHONY: help run build build-all package package-all lint clean deps
 
@@ -21,14 +30,14 @@ run:
 ## build: Build binary for current platform
 build:
 	@mkdir -p $(BIN_DIR)
-	CGO_ENABLED=1 $(GO) build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(APP_NAME) .
+	CGO_ENABLED=1 $(GO) build -ldflags "$(HOST_LDFLAGS)" -o $(BIN_DIR)/$(APP_NAME)$(HOST_EXT) .
 
 ## build-all: Cross-compile for Windows, macOS, Linux
 build-all: build-windows build-macos build-linux
 
 build-windows:
 	@mkdir -p $(BIN_DIR)
-	CGO_ENABLED=1 GOOS=windows GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(APP_NAME)-windows-amd64.exe .
+	CGO_ENABLED=1 GOOS=windows GOARCH=amd64 $(GO) build -ldflags "$(WIN_LDFLAGS)" -o $(BIN_DIR)/$(APP_NAME)-windows-amd64.exe .
 
 build-macos:
 	@mkdir -p $(BIN_DIR)
