@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"strings"
 	"sync"
 
 	"fyne.io/fyne/v2"
@@ -10,26 +11,35 @@ import (
 )
 
 type LogPage struct {
-	mu  sync.Mutex
-	log *widget.Entry
+	mu     sync.Mutex
+	log    *widget.RichText
+	scroll *container.Scroll
+	lines  []string
 }
 
 func NewLogPage() *LogPage {
 	lp := &LogPage{
-		log: widget.NewMultiLineEntry(),
+		log: widget.NewRichText(),
 	}
-	lp.log.SetPlaceHolder("Sync activity will appear here.")
-	lp.log.Disable()
+	lp.log.Wrapping = fyne.TextWrapWord
+	lp.scroll = container.NewVScroll(lp.log)
 	return lp
 }
 
 func (lp *LogPage) Content() fyne.CanvasObject {
 	clearBtn := widget.NewButtonWithIcon("Clear", theme.DeleteIcon(), func() {
 		lp.mu.Lock()
-		lp.log.SetText("")
+		lp.lines = nil
+		lp.log.Segments = []widget.RichTextSegment{
+			&widget.TextSegment{Text: "Sync activity will appear here."},
+		}
+		lp.log.Refresh()
 		lp.mu.Unlock()
 	})
-	body := container.NewBorder(nil, container.NewHBox(clearBtn), nil, nil, lp.log)
+	lp.log.Segments = []widget.RichTextSegment{
+		&widget.TextSegment{Text: "Sync activity will appear here."},
+	}
+	body := container.NewBorder(nil, container.NewHBox(clearBtn), nil, nil, lp.scroll)
 	return page("Activity Log", "Review sync progress, errors, and scheduled runs.", body)
 }
 
@@ -37,6 +47,11 @@ func (lp *LogPage) Append(text string) {
 	fyne.DoAndWait(func() {
 		lp.mu.Lock()
 		defer lp.mu.Unlock()
-		lp.log.SetText(lp.log.Text + "\n" + text)
+		lp.lines = append(lp.lines, text)
+		lp.log.Segments = []widget.RichTextSegment{
+			&widget.TextSegment{Text: strings.Join(lp.lines, "\n")},
+		}
+		lp.log.Refresh()
+		lp.scroll.ScrollToBottom()
 	})
 }
