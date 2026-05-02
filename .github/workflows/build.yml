@@ -1,0 +1,108 @@
+name: Build and Package
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }} / ${{ matrix.arch }})
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            runs-on: ubuntu-latest
+            arch: amd64
+            goos: linux
+            goarch: amd64
+            ext: ""
+            pkg: tar.gz
+          - os: windows
+            runs-on: windows-latest
+            arch: amd64
+            goos: windows
+            goarch: amd64
+            ext: .exe
+            pkg: zip
+          - os: macos
+            runs-on: macos-latest
+            arch: amd64
+            goos: darwin
+            goarch: amd64
+            ext: ""
+            pkg: tar.gz
+          - os: macos
+            runs-on: macos-latest
+            arch: arm64
+            goos: darwin
+            goarch: arm64
+            ext: ""
+            pkg: tar.gz
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libgl1-mesa-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl-dev libxxf86vm-dev
+
+      - name: Build
+        env:
+          CGO_ENABLED: 1
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -ldflags="-s -w" -o "simpler2sync-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}" .
+
+      - name: Package (tar.gz)
+        if: matrix.pkg == 'tar.gz'
+        run: |
+          tar czf "simpler2sync-${{ matrix.os }}-${{ matrix.arch }}.tar.gz" "simpler2sync-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}" README.md
+
+      - name: Package (zip)
+        if: matrix.pkg == 'zip'
+        run: |
+          Compress-Archive -Path "simpler2sync-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.ext }}", "README.md" -DestinationPath "simpler2sync-${{ matrix.os }}-${{ matrix.arch }}.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: simpler2sync-${{ matrix.os }}-${{ matrix.arch }}
+          path: simpler2sync-${{ matrix.os }}-${{ matrix.arch }}.${{ matrix.pkg }}
+
+  release:
+    name: Create Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: ls -R artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          draft: true
+          generate_release_notes: true
