@@ -1,6 +1,8 @@
 package gui
 
 import (
+	"bytes"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -44,7 +46,7 @@ func (lp *LogPage) Content() fyne.CanvasObject {
 }
 
 func (lp *LogPage) Append(text string) {
-	fyne.DoAndWait(func() {
+	update := func() {
 		lp.mu.Lock()
 		defer lp.mu.Unlock()
 		lp.lines = append(lp.lines, text)
@@ -53,5 +55,16 @@ func (lp *LogPage) Append(text string) {
 		}
 		lp.log.Refresh()
 		lp.scroll.ScrollToBottom()
-	})
+	}
+	if isMainGoroutine() {
+		update()
+		return
+	}
+	fyne.Do(update)
+}
+
+func isMainGoroutine() bool {
+	var buf [64]byte
+	n := runtime.Stack(buf[:], false)
+	return bytes.HasPrefix(buf[:n], []byte("goroutine 1 "))
 }

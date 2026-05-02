@@ -6,9 +6,9 @@ import (
 	"fyne.io/fyne/v2"
 )
 
-//go:embed icon.png
+//go:embed icon.svg
 var iconData []byte
 
 func AppIcon() fyne.Resource {
-	return fyne.NewStaticResource("icon.png", iconData)
+	return fyne.NewStaticResource("icon.svg", iconData)
 }
