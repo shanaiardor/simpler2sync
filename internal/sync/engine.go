@@ -59,7 +59,7 @@ func RunSync(ctx context.Context, client *r2client.Client, st *store.Store, task
 	}
 	actions = resolvedActions
 
-	success, failed, err := Execute(ctx, client, st, bucket, localRoot, actions, taskID, cb)
+	success, failed, err := Execute(ctx, client, st, bucket, localRoot, actions, taskID, conflictStrategy, cb)
 	if err != nil {
 		return nil, err
 	}

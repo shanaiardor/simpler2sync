@@ -73,12 +73,15 @@ func (c *Client) ListObjects(ctx context.Context, bucket, prefix string) ([]Obje
 	return objects, nil
 }
 
-func (c *Client) UploadFile(ctx context.Context, bucket, key string, reader io.Reader, size int64) (string, error) {
+func (c *Client) UploadFile(ctx context.Context, bucket, key string, reader io.Reader, size int64, contentType string) (string, error) {
 	input := &s3.PutObjectInput{
 		Bucket:        aws.String(bucket),
 		Key:           aws.String(key),
 		Body:          reader,
 		ContentLength: aws.Int64(size),
+	}
+	if contentType != "" {
+		input.ContentType = aws.String(contentType)
 	}
 	result, err := c.client.PutObject(ctx, input)
 	if err != nil {
@@ -87,15 +90,24 @@ func (c *Client) UploadFile(ctx context.Context, bucket, key string, reader io.R
 	return strings.Trim(aws.ToString(result.ETag), `"`), nil
 }
 
-func (c *Client) DownloadFile(ctx context.Context, bucket, key string) (io.ReadCloser, int64, error) {
+func (c *Client) DownloadFile(ctx context.Context, bucket, key string) (io.ReadCloser, ObjectInfo, error) {
 	result, err := c.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return nil, 0, fmt.Errorf("download %s: %w", key, err)
+		return nil, ObjectInfo{}, fmt.Errorf("download %s: %w", key, err)
 	}
-	return result.Body, aws.ToInt64(result.ContentLength), nil
+	var lastMod int64
+	if result.LastModified != nil {
+		lastMod = result.LastModified.Unix()
+	}
+	return result.Body, ObjectInfo{
+		Key:          key,
+		ETag:         strings.Trim(aws.ToString(result.ETag), `"`),
+		Size:         aws.ToInt64(result.ContentLength),
+		LastModified: lastMod,
+	}, nil
 }
 
 func (c *Client) DeleteObject(ctx context.Context, bucket, key string) error {

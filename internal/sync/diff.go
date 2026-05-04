@@ -10,14 +10,17 @@ import (
 type ActionType string
 
 const (
-	ActionUpload   ActionType = "upload"
-	ActionDownload ActionType = "download"
+	ActionUpload    ActionType = "upload"
+	ActionDownload  ActionType = "download"
+	ActionReconcile ActionType = "reconcile"
 )
 
 type Action struct {
 	Type      ActionType
 	LocalPath string
 	RemoteKey string
+	Local     FileInfo
+	Remote    r2client.ObjectInfo
 }
 
 func Diff(localFiles []FileInfo, remoteObjects map[string]r2client.ObjectInfo, states map[string]*store.SyncState, taskID, localRoot, remotePrefix string, conflictStrategy string) ([]Action, error) {
@@ -39,35 +42,35 @@ func Diff(localFiles []FileInfo, remoteObjects map[string]r2client.ObjectInfo, s
 		remote, hasRemote := remoteObjects[key]
 		st := states[key]
 		if !hasRemote {
-			actions = append(actions, Action{Type: ActionUpload, LocalPath: local.Path, RemoteKey: key})
+			actions = append(actions, Action{Type: ActionUpload, LocalPath: local.Path, RemoteKey: key, Local: local})
 		} else if hasRemote && st != nil {
 			localChanged := local.Hash != st.LocalHash
 			remoteChanged := remote.ETag != st.RemoteETag
 			if localChanged && !remoteChanged {
-				actions = append(actions, Action{Type: ActionUpload, LocalPath: local.Path, RemoteKey: key})
+				actions = append(actions, Action{Type: ActionUpload, LocalPath: local.Path, RemoteKey: key, Local: local, Remote: remote})
 			} else if !localChanged && remoteChanged {
-				actions = append(actions, Action{Type: ActionDownload, LocalPath: local.Path, RemoteKey: key})
+				actions = append(actions, Action{Type: ActionDownload, LocalPath: local.Path, RemoteKey: key, Local: local, Remote: remote})
 			} else if localChanged && remoteChanged {
 				switch conflictStrategy {
 				case "newer":
 					if local.ModTime > st.RemoteMtime {
-						actions = append(actions, Action{Type: ActionUpload, LocalPath: local.Path, RemoteKey: key})
+						actions = append(actions, Action{Type: ActionUpload, LocalPath: local.Path, RemoteKey: key, Local: local, Remote: remote})
 					} else {
-						actions = append(actions, Action{Type: ActionDownload, LocalPath: local.Path, RemoteKey: key})
+						actions = append(actions, Action{Type: ActionDownload, LocalPath: local.Path, RemoteKey: key, Local: local, Remote: remote})
 					}
 				case "mirror":
-					actions = append(actions, Action{Type: ActionUpload, LocalPath: local.Path, RemoteKey: key})
+					actions = append(actions, Action{Type: ActionUpload, LocalPath: local.Path, RemoteKey: key, Local: local, Remote: remote})
 				}
 			}
 		} else {
-			actions = append(actions, Action{Type: ActionUpload, LocalPath: local.Path, RemoteKey: key})
+			actions = append(actions, Action{Type: ActionReconcile, LocalPath: local.Path, RemoteKey: key, Local: local, Remote: remote})
 		}
 		delete(remoteKeys, key)
 	}
 
 	for key := range remoteKeys {
 		if _, hasLocal := localMap[key]; !hasLocal {
-			actions = append(actions, Action{Type: ActionDownload, LocalPath: "", RemoteKey: key})
+			actions = append(actions, Action{Type: ActionDownload, LocalPath: "", RemoteKey: key, Remote: remoteObjects[key]})
 		}
 	}
 
